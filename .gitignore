@@ -10,3 +10,6 @@
 /tea.obj
 /test.py
 /venv
+
+*.obj
+.DS_Store
