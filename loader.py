@@ -19,7 +19,7 @@ def get_edges(data):
         try:
             if split_line[0] == "f":
                 inds = split_line[1:]
-                inds = [i.split("/")[:2] for i in inds]
+                inds = [i.split("/") for i in inds]
                 edges.append(inds)
         except IndexError:
             pass
@@ -39,6 +39,18 @@ def get_uvs(data):
             # print("Found Line Break!")
     return points
 
+def get_normals(data):
+    points = []
+    for line in data:
+        split_line = line.split()
+        try:
+            if split_line[0] == "vn":
+                points.append([float(i) for i in split_line[1:3]])
+        except IndexError:
+            pass
+            # print("Found Line Break!")
+    return points
+
 def get_faces(path: str) -> list:
     
     with open(path, "r") as file:
@@ -46,6 +58,7 @@ def get_faces(path: str) -> list:
         points = get_points(lines)
         edges = get_edges(lines)
         uvs = get_uvs(lines)
+        vns = get_normals(lines)
         
         faces = []
         default_uv = [[0, 0], [1, 0], [0, 1]]
@@ -53,13 +66,14 @@ def get_faces(path: str) -> list:
             face = []
             for i, ind in enumerate(edge):
                 if len(ind) > 1:
-                    i,u = ind
+                    i,u,n = ind
                     point = points[int(i)-1]
                     uv = uvs[int(u)-1]
+                    vn = vns[int(n)-1]
                 else:
                     point = points[int(ind[0])-1]
                     uv = default_uv[i]
-                face.append(point+uv)
+                face.append(point+uv+vn)
             faces.append(face)
         
         # faces = faces[::10]

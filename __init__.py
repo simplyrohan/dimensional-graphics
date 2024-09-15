@@ -15,8 +15,16 @@ def safe_tri(lst):
 
 def bary_to_cart(bary, triangle):
     return [
-        bary[0] * triangle[0][0] + bary[1] * triangle[1][0] + bary[2] * triangle[2][0],
-        bary[0] * triangle[0][1] + bary[1] * triangle[1][1] + bary[2] * triangle[2][1],
+        (
+            bary[0] * triangle[0][0]
+            + bary[1] * triangle[1][0]
+            + bary[2] * triangle[2][0]
+        ),
+        (
+            bary[0] * triangle[0][1]
+            + bary[1] * triangle[1][1]
+            + bary[2] * triangle[2][1]
+        ),
     ]
 
 
@@ -61,8 +69,15 @@ def draw_triangle(
         uvs[i] = (uvs[i][0] / z, uvs[i][1] / z)
     tsurf = pygame.Surface((tw, th)).convert_alpha()
     tsurf.fill((0, 0, 0, 0))
-    for x in range(tsurf.get_width()):
-        for y in range(tsurf.get_height()):
+    for x in range(tsurf.get_width() - 1):
+        for y in range(tsurf.get_height() - 1):
+            if (
+                x + tx < 0
+                or y + ty < 0
+                or x + tx > screen.get_width() - 1
+                or y + ty > screen.get_height() - 1
+            ):
+                continue
             # Get Pixel Value
             bary = cart_to_bary((x, y), triangle)
             if (bary is False) or (bary[0] < 0 or bary[1] < 0 or bary[2] < 0):
@@ -71,15 +86,15 @@ def draw_triangle(
             if buffer[int(x + tx)][int(y + ty)] > z:
                 buffer[int(x + tx)][int(y + ty)] = z
                 uv = bary_to_cart(bary, uvs)
-                uv[0] = uv[0] * (z / rz)
-                uv[1] = uv[1] * (z / rz)
-                uv = int(uv[0] * (texture.get_width() - 1)), int(
-                    uv[1] * (texture.get_height() - 1)
+                uv[0] = uv[0] * (z / rz) % 1
+                uv[1] = uv[1] * (z / rz) % 1
+                uv = (
+                    (int(uv[0] * (texture.get_width() - 1))),
+                    (int(uv[1] * (texture.get_height() - 1))),
                 )
-                try:
-                    tsurf.set_at((x, y), texture.get_at(uv))
-                except IndexError:
-                    print("oop")
+                color = texture.get_at(uv)
+                # color = (int(uv[0] * 255), int(uv[1] * 255), 255)
+                tsurf.set_at((x, y), color)
 
     screen.blit(tsurf, (tx, ty))
 
@@ -98,7 +113,10 @@ class Model:
         self.raw_faces = faces
 
         self.faces = [
-            [[axis * scale for axis in vertex[:3]] + vertex[-2:] for vertex in face]
+            [
+                [axis * scale for axis in vertex[:3]] + vertex[-5:-3] + vertex[-3:]
+                for vertex in face
+            ]
             for face in self.raw_faces
         ]
         self.position = pygame.Vector3([0, 0, 0])
@@ -139,9 +157,9 @@ class Camera:
     # @profile
     def render(self, objects: list, screen: pygame.Surface) -> None:
         # Transformations
-        xf, yf = -((screen.get_width() / 2) / tan(self.fov / 2)), -(
-            (screen.get_height() / 2) / tan(self.fov / 2)
-        )
+        halfWidth = screen.get_width() / 2
+        halfHeight = screen.get_height() / 2
+        xf, yf = -(halfWidth / tan(self.fov / 2)), -(halfHeight / tan(self.fov / 2))
 
         buffer = [
             [float("inf") for _ in range(screen.get_height())]
@@ -156,30 +174,33 @@ class Camera:
                 true_face = []
                 zs = []
                 uvs = []
+                vn = []
                 for point in face:
                     # Local transforms
                     # Rotation
-                    uvs.append(point[-2:])
+                    uvs.append(point[-5:-3])
 
                     point = point[:3]
                     true_point = pygame.Vector3(point)
                     rotate(true_point, obj.rotation)
+
                     # Position
                     true_point: pygame.Vector3 = (
                         true_point + obj.position - self.position
                     )
 
                     # Camera transforms
-                    # rotate(true_point, self.rotation)
                     true_point.rotate_y_ip(yaw)
                     true_point.rotate_x_ip(pitch)
-                    zs.append(true_point[2])
+
+                    zs.append(int(true_point[2]))
+
                     projected = self.project(true_point, xf, yf)
 
                     true_face.append(
                         (
-                            projected[0] + screen.get_width() / 2,
-                            projected[1] + screen.get_height() / 2,
+                            int(projected[0] + halfWidth),
+                            int(projected[1] + halfHeight),
                         )
                     )
 
@@ -188,6 +209,6 @@ class Camera:
 
     def project(self, point: list[int, int, int], xf, yf) -> tuple:
         # TODO: Do not use try/except to sole ZeroDiv. It is slow. Implement culling
-        x_projected: float = (point[0] * xf) // (point[2] + xf)
-        y_projected: float = (point[1] * yf) // (point[2] + yf)
+        x_projected = (int(point[0]) * xf) // (point[2] + xf)
+        y_projected = (int(point[1]) * yf) // (point[2] + yf)
         return x_projected, y_projected
